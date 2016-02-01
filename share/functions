@@ -1,0 +1,9 @@
+##
+##  Useful functions shared between different scripts
+##
+
+fail() {
+    echo
+    echo "FAIL: $@"
+    exit 1
+} >&2

@@ -1,0 +1,22 @@
+#!/bin/bash
+#
+#  Build release notes and upload them to
+#  the server
+
+set -e
+
+etc=$(cd $(dirname "$0")/../etc; pwd)
+share=$(cd $(dirname "$0")/../share; pwd)
+
+. $share/functions
+. $etc/paths
+ 
+for ver in 2.10 2.11 2.12 2.13 2.14; do
+    echo Building release-notes-$ver.shtml ...
+    $MULTIMARKDOWN -t html --process-html release-notes-$ver  | xsltproc release-notes.xsl - > release-notes-$ver.shtml
+done
+
+for ver in 2.7 2.8 2.9; do
+    echo Building unsupported release-notes-$ver.shtml ...
+    $MULTIMARKDOWN -t html --process-html release-notes-$ver  | xsltproc release-notes.xsl - > release-notes-$ver.shtml
+done

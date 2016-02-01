@@ -1,0 +1,115 @@
+#!/bin/bash
+#
+#  Do the tagging for dCache release
+
+set -e
+
+share=$(cd $(dirname "$0")/../share; pwd)
+etc=$(cd $(dirname "$0")/../etc; pwd)
+
+. $share/functions
+. $etc/paths
+
+if [ "$1" = "--auto-tag" ]; then
+    auto_tag=1
+    shift
+fi
+
+if [ $# -gt 0 ]; then
+    BRANCHES="$@"
+else
+    BRANCHES="2.14 2.13 2.12 2.11 2.10 2.9 2.8 2.7 2.6"
+fi
+
+for branch in $BRANCHES; do
+    case "$branch" in
+        2.[0-9]*)
+            case "${branch#2.}" in
+                6|7|8|9|10|11|12|13|14)
+                    #  Valid
+                    ;;
+                *)
+                    fail Invalid branch: $branch
+                    ;;
+            esac
+            ;;
+        *)
+            fail Invalid branch: $branch
+            ;;
+    esac
+done
+
+java_home_for_tag() {
+    case $1 in
+        2.10* | 2.9* | 2.8* | 2.7* | 2.6*)
+            echo $JDK7_HOME
+            ;;
+
+        *)
+            echo $JDK8_HOME
+            ;;
+    esac
+}
+
+branches_to_release() {
+    git fetch $git_remote_branch
+
+    for branch in $BRANCHES; do
+        git checkout -q $branch >/dev/null
+        git merge -q --ff-only $git_remote_branch/$branch
+
+        next_tag=$(sed -n '/version/s/[^0-9]*\([0-9.]*\).*/\1/p' pom.xml |head -1)
+        next_bugfix=$(echo $next_tag|cut -d. -f3)
+
+        if [ "$next_bugfix" = 0 ]; then
+            ## Assume that first tag in a branch is always useful.
+            echo $branch
+        else
+            last_tag=$(git describe --abbrev=0)
+
+            #  Verify that next tag is one more than last tag
+            last_bugfix=$(echo $last_tag|cut -d. -f3)
+            [ $(( $last_bugfix + 1 )) -eq $next_bugfix ] || fail "Mismatch between last tag $last_tag and anticipated next tag $next_tag"
+
+            remove_count=$(git diff $last_tag..$branch |grep ^-| egrep -v "(---)|(<(version|tag)>$last_tag</(version|tag)>)"|wc -l)
+            add_count=$(git diff $last_tag..$branch |grep ^+| egrep -v "(\+\+\+)|(<(version|tag)>$next_tag-SNAPSHOT</(version|tag)>)"|grep -v "<tag>.*</tag>"|wc -l)
+            [ $(( $remove_count + $add_count )) -gt 0 ] && echo $branch || :
+        fi
+    done
+}
+
+git rev-parse --git-dir >/dev/null 2>&1 || fail "Current directory not a git repo."
+
+[ $(git status --porcelain | wc -l) -eq 0 ] || fail "git repo isn't clean"
+
+git_remote_branch=$(git remote -v | awk "/git@github.com:dCache\/dcache.git \(fetch\)/{print \$1}")
+[ "$git_remote_branch" != "" ] || fail "Current directory has no (fetch) remote branch from github."
+
+echo -n "Checking which branches need releasing: "
+release_branches=$(branches_to_release)
+
+if [ "$release_branches" = "" ]; then
+    echo "(none)"
+    exit 0
+else
+    echo $release_branches
+fi
+echo
+
+if [ "$auto_tag" != "1" ]; then
+    echo -n "Type \"continue\" to start the tagging process: "
+    read answer
+    [ "$answer" = "continue" ] || fail "Aborted at user request."
+fi
+
+for branch in $release_branches; do
+    git checkout -q $branch
+    git clean -df >/dev/null
+    next_tag=$(sed -n '/version/s/[^0-9]*\([0-9.]*\).*/\1/p' pom.xml |head -1)
+    export JAVA_HOME=$(java_home_for_tag ${next_tag})
+    echo
+    echo "==="
+    echo "===    Preparing for $next_tag"
+    echo "==="
+    mvn -B release:prepare
+done

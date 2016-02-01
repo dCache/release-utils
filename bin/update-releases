@@ -1,0 +1,229 @@
+#!/bin/bash
+#
+#  Update files for specific releases.
+
+set -e
+
+etc=$(cd $(dirname $0)/../etc;pwd)
+share=$(cd $(dirname $0)/../share;pwd)
+
+REPO_URL=https://www.dcache.org/downloads/1.9/repo
+
+. $share/functions
+
+shopt -s extglob
+
+if [ $# -eq 0 ]; then
+    fail "Need to specify which dCache releases to process."
+fi
+
+validate_release() { # $1 - dCache release
+    echo "$1" | grep -q '^[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*$' || fail "Version \"$1\" is not a valid dCache release"
+}
+
+get_series() { # $1 dCache version
+    echo ${1%%.*([0-9])}
+}
+
+get_bugfix() { # $1 dCache version
+    echo ${1##*([0-9]).*([0-9]).}
+}
+
+
+release_exists() {  # $1 series, $2 bugfix release
+    rc=0
+    xmllint --xpath "/download-page/series/releases[version-prefix='$1.']/release[@version='$2']" releases.xml >/dev/null 2>&1 || rc=$?
+    if [ $rc -eq 0 ]; then
+	return 0
+    else
+	return 1
+    fi
+}
+
+check_release_does_not_exist() { # $1 series, $2 bugfix release
+    if release_exists $1 $2; then
+	return 1
+    fi
+    return 0
+}
+
+check_release_exists() { # $1 series, $2 bugfix release
+    if ! release_exists $1 $2; then
+	return 1
+    fi
+    return 0
+}
+
+check_version_ok_to_release() { # $1 - dCache release
+    series=$(get_series $1)
+    bugfix=$(get_bugfix $1)
+
+    check_release_does_not_exist $series $bugfix || fail "dCache v$1 already released."
+
+    if [ $bugfix -gt 0 ]; then
+	bugfix=$(( $bugfix - 1 ))
+
+	until [ $bugfix = 0 ] || [ "${skipped[$series.$bugfix]}" == "" ]; do
+	    bugfix=$(( $bugfix - 1 ))
+	done
+
+	if [ "${skipped[$series.$bugfix]}" == "" ]; then
+	    check_release_exists $series $bugfix || fail "Cannot release dCache v$1, v$series.$bugfix has not been released."
+	fi
+    fi
+}
+
+
+list_packages() { # $1 - dCache version
+    series=$(get_series $1)
+    curl -s -X PROPFIND $REPO_URL/$series --upload-file - -H "Depth: 1" << EOF | xsltproc --stringparam release $1 $share/list-files.xsl -
+<?xml version="1.0"?>
+<a:propfind xmlns:a="DAV:">
+</a:propfind>
+EOF
+}
+
+download_packages() { # $1 - dCache version
+    series=$(get_series $1)
+    for name in $(list_packages $1); do
+	echo Downloading $name
+	curl -s -O -L $REPO_URL/$series/$name
+    done
+}
+
+build_checksum_info() { # $1 - dCache version
+    series=$(get_series $1)
+    tmp=$(mktemp -d)
+    cwd=`pwd`
+    
+    cd $tmp
+    download_packages $1
+
+    # Keep only the latest build-number
+    latest_deb=$(ls -1 dcache_$1-*.deb | sed "s/dcache_$1-//;s/_all.deb//" | sort -n | tail -1)
+    latest_rpm=$(ls -1 dcache-$1-*.rpm | sed "s/dcache-$1-//;s/.noarch.rpm//" | sort -n | tail -1)
+
+    for f in *.deb; do
+	if [ "$f" != "dcache_$1-${latest_deb}_all.deb" ]; then
+	    rm "$f"
+	fi
+    done
+
+    for f in *.rpm; do
+	if [ "$f" != "dcache-$1-${latest_rpm}.noarch.rpm" ]; then
+	    rm "$f"
+	fi
+    done
+
+    md5sum * | \
+        sed "s/dcache.$1.//;s/_all.deb/ deb/;s/.noarch.rpm/ rpm/;s/tar.gz/1 tgz/;s/.pkg/ sol/" |
+        awk 'BEGIN{print "<checksums>"} {print "    <checksum pack=\""$2"\" type=\""$3"\">"$1"</checksum>"} END{print "</checksums>"}' > $cwd/checksums-$series.xml
+
+    cd $cwd
+    rm -rf $tmp
+}
+
+
+update_releases() { # $1 - dCache version
+    [ -z ${date+x} ] || date_param="--stringparam date $date"
+    xsltproc --stringparam version $1 $date_param --stringparam checksums-path "$(pwd)" $share/update-releases.xsl releases.xml > out.xml
+    mv out.xml releases.xml
+}
+
+build_email() { # $* - list of dCache versions to release
+    # TODO sort increasing series number
+
+    if [ $# -eq 1 ]; then
+	releases=release
+	are=is
+	each=this
+    else
+	releases=releases
+	are=are
+	each=each
+    fi
+
+    index=1
+    for version in $*; do
+	series=$(get_series $version)
+	bugfix=$(get_bugfix $version)
+
+	if [ $index -eq 1 ]; then
+	    version_list="$version_list $version [$index]"
+	elif [ $index -lt $# ]; then
+	    version_list="$version_list, $version [$index]"
+	else
+	    version_list="$version_list and $version [$index]"
+	fi
+
+	case $series in
+	    2.6)
+		frag_id="$bugfix"
+		;;
+	    *)
+		frag_id="release$version"
+		;;
+	esac
+	rel_notes="${rel_notes}[$index] http://www.dcache.org/downloads/1.9/release-notes-$series.shtml#$frag_id\n"
+
+	index=$(( $index + 1 ))
+    done
+
+    sed "s/EACH/$each/g;s/RELEASES/$releases/g;s/ARE/$are/g;s/VERSION_LIST/$version_list/g" $etc/email-template | fmt -u
+    echo
+    echo -e "$rel_notes"
+}
+
+declare -A skipped
+for rel in $*; do
+    case $rel in
+	--help)
+	    echo "$0 [--skipped_releases=RELEASE_LIST] [--date=DATE] RELEASE [RELEASE...]"
+	    echo
+	    echo "This script updates the 'releases.xml' file, where RELEASE [RELEASE...]"
+	    echo "is a list of dCache versions that are being released."
+	    echo
+	    echo "The following options are supported:"
+	    echo
+	    echo "    --skipped_releases  a list of releases that have been skipped; this allows"
+	    echo "                        for non-continous dCache releases.  If this option is"
+	    echo "                        not specified then the script will prevent non-contiguous"
+	    echo "                        releases."
+	    echo
+	    echo "    --date              specify the date of the release as DD.MM.YYYY"
+	    echo "                        (e.g., '6.11.2014').  If omitted, today's date is used."
+	    echo
+	    exit 0
+	;;
+
+	--skipped_releases=*)
+	    r=${rel##--skipped_releases=}
+	    for s in ${r//,/ }; do
+		skipped[$s]=true
+	    done
+	    ;;
+
+	--date=*)
+	    date=${rel##--date=}
+	    ;;
+
+	*)
+	    releases="$releases $rel"
+	    ;;
+    esac
+done
+
+
+for rel in $releases; do
+    validate_release "$rel"
+    check_version_ok_to_release $rel
+done
+
+for rel in $releases; do
+    echo Adding release info for $rel
+    build_checksum_info $rel
+    update_releases $rel
+    rm checksums-$(get_series $rel).xml
+done
+
+build_email $releases

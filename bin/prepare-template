@@ -1,0 +1,101 @@
+#!/bin/bash
+#
+#  Script to parse log file and produce an initial
+#  template for generating release notes
+
+set -e
+
+share=$(cd $(dirname "$0")/../share; pwd)
+
+. $share/functions
+
+range() { # $1 range specifier --- either a branch (e.g. "2.10") or explicit range (e.g., "2.10.3..2.10.5")
+    if [[ "$1" == *..* ]]; then
+        echo "$1"
+    else
+        latest_tag=$(latest_tag $1)
+        prev_tag=$branch.$(( $(echo $latest_tag|cut -d. -f3) - 1 ))
+        echo $prev_tag..$latest_tag
+    fi
+}
+
+branch() { # $1 range specifier --- either a branch (e.g. "2.10") or explicit range (e.g., "2.10.3..2.10.5")
+    if [[ "$1" == *..* ]]; then
+
+        branch_items=$(echo $1|sed 's/\.[0-9]*\.\.\(.*\)\.[0-9]*/ \1/')
+        item=( $branch_items )
+        if [ "${item[0]}" != "${item[1]}" ]; then
+            fail "Inconsistent branches: ${item[0]} != ${item[1]}"
+        fi
+        echo ${item[0]}
+    else
+        echo $1
+    fi
+}
+
+list_changes() { # $1 format, $2.. branches
+    local format=$1
+    shift
+    for branch in $*; do
+        git log $(range $branch) --no-merges --format="$format"
+    done
+}
+
+latest_tag() { # $1 branch
+    git tag|grep "$(echo "$1."|sed 's%\.%\\.%g')" | sort -t. -k3nr | head -1
+}
+
+[ $# -gt 0 ] || fail "Need to specify which branches are being released"
+
+git rev-parse --git-dir >/dev/null 2>&1 || fail "Current directory not a git repo."
+
+git_remote_branch=$(git remote -v | awk "/git@github.com:dCache\/dcache.git \(fetch\)/{print \$1}")
+if [ "$git_remote_branch" = "" ]; then
+    git_remote_branch=$(git remote -v | awk "/https:\/\/github.com\/dCache\/dcache.git/{print \$1}")
+fi
+
+[ "$git_remote_branch" != "" ] || fail "Current git repo is not a dCache clone."
+
+git pull >/dev/null
+
+declare -A summary_hashes
+while read hash summary; do
+    if [ "${summary_hashes[$summary]}" != "" ]; then
+        summary_hashes[$summary]="${summary_hashes[$summary]} "
+    fi
+    summary_hashes[$summary]="${summary_hashes[$summary]}$hash"
+done < <(list_changes "%h %s" "$@"|grep -v maven-release-plugin)
+
+
+## List contents of summary_hashes
+for summary in "${!summary_hashes[@]}"; do
+    tags=""
+    echo "H: ${summary_hashes[$summary]}"
+    echo -n "R:"
+    for hash in ${summary_hashes[$summary]}; do
+        tag=$(git tag --contains $hash | tail -1)
+        echo $tags | grep -q $tag || echo -n " $tag"
+        tags="$tags $tag"
+    done
+    echo
+    echo "S: $summary"
+    echo "T:  # Type is name of service or MANY"
+    echo "#  Description in mark-down; terminate with a line containin only '--'"
+    echo "--"
+done
+
+
+## Build the list of changes
+for branch in $*; do
+    echo "B: $(branch $branch)"
+    latest_tag=$(latest_tag $branch)
+    prev_tag=$branch.$(( $(echo $latest_tag|cut -d. -f3) - 1 ))
+    range=$(range $branch)
+
+    echo "### Changelog $range"
+    echo
+    echo "<!-- git log $range -no-merges -format='[%h](https://github.com/dcache/dcache/commit/%H)%n:   %s%n' -->"
+    echo
+    list_changes '[%h](https://github.com/dcache/dcache/commit/%H)%n:   %s%n' $range
+    echo "--"
+done

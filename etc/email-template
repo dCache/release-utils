@@ -1,0 +1,12 @@
+Dear dCache admins,
+
+We have made the latest bug-fix RELEASES, which ARE VERSION_LIST.  The
+packages may be downloaded from the usual locations and the release notes
+for EACH series have been updated.
+
+As usual, please examine the release notes carefully to understand
+whether you need to upgrade your dCache instance.
+
+Cheers,
+
+Paul.

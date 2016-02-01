@@ -1,0 +1,9 @@
+
+#  Locations of various tools
+
+MULTIMARKDOWN=$HOME/git/peg-multimarkdown/multimarkdown
+
+#  Paths of various directories
+
+JDK7_HOME=/usr/lib/jvm/java-7-openjdk-amd64
+JDK8_HOME=/usr/lib/jvm/java-8-openjdk-amd64

@@ -1,0 +1,85 @@
+#!/bin/bash
+#
+#  Script to process the template file and update
+#  the different release-notes-* files.
+
+set -e
+
+etc=$(cd $(dirname "$0")/../etc; pwd)
+share=$(cd $(dirname "$0")/../share; pwd)
+
+. $share/functions
+
+find_release() { # $1 - template file, $2 - branch
+    branch_re=$(echo $2|sed 's/\./\\./g')
+    sed -n "/^R: /s/.*\($branch_re\.[0-9]*\).*/\1/p" "$1" | sort | uniq
+}
+
+list_branches() {
+    awk '/^R: /{for (i = 2; i <= NF; i++) {split($i, a, "\\."); print a[1]"."a[2];}}' "$1" | sort -t. -k2nr | uniq
+}
+
+list_services() { # $1 - file, $2 - branch
+    awk "/^R: /{r=\$0}/^T: /{if (index(r,\"$2.\") != 0) print \$2}/^--/{r=\"\"}" "$1" | sort | uniq
+}
+
+print_part() { # $1 release-notes filename, $2 = preamble or releases
+    awk "BEGIN{s=\"preamble\"}/^## Release/{s=\"releases\"}{if (s==\"$2\") print \$0;}" "$1"
+}
+
+print_release() { # $1 file, $2 version, $3... services
+    local file=$1
+    local version=$2
+    local branch=$(echo $version | cut -d. -f1,2)
+    shift 2
+
+    echo "## Release $version"
+    echo
+
+    if [ $1 = "MANY" ]; then
+	echo "### Changes affecting multiple services"
+	echo
+	awk "/^--/{s=0}/^ *[^ ]/{if (s==2)s=3}{if (s==3){print \$0}}/^ *\$/{if (s==2){s=3}}/^R: .*$version/{s=1}/^T: MANY/{if (s==1){s=2}}" "$file"
+	shift
+    fi
+
+    for service in $*; do
+	echo "### $service"
+	echo
+	awk "/^--/{s=0}/^ *[^ ]/{if (s==2)s=3}{if (s==3){print \$0}}/^ *\$/{if (s==2){s=3}}/^R: .*$version/{s=1}/^T: $service *\$/{if (s==1){s=2}}" "$file"
+    done
+
+    echo
+
+    awk "/^--\$/{s=0}{if (s==1) print}/^B: $branch\$/{s=1}" "$file"
+}
+
+[ $# -eq 1 ] || fail "Need to specify the template file"
+
+branches=$(list_branches "$1")
+
+for branch in $branches; do
+    #  Skip over 2.6 for now.
+    if [ $branch = "2.6" ]; then
+	continue
+    fi
+
+    filename=release-notes-$branch
+
+    if [ ! -f $filename ]; then
+	echo "Cannot file $filename, skipping branch $branch"
+	continue
+    fi
+
+    release=$(find_release "$1" $branch)
+
+    print_part $filename preamble > $filename.new
+
+    services=$(list_services "$1" "$branch" | grep -v MANY || :)
+    many=$(list_services "$1" "$branch" | grep MANY || :)
+
+    print_release "$1" $release $many $services >> $filename.new
+
+    print_part $filename releases >> $filename.new
+    mv $filename.new $filename
+done
