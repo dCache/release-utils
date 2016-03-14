@@ -41,12 +41,9 @@ branch() { # $1 range specifier --- either a branch (e.g. "2.10") or explicit ra
 list_changes() { # $1 format, $2.. branches
     local format=$1
     shift
-    tmp=$(mktemp)
     for branch in $*; do
-        git log $(range $branch) --no-merges --format="$format" > $tmp
-        cat $tmp
+        git log $(range $branch) --no-merges --format="$format"
     done
-    rm $tmp
 }
 
 latest_tag() { # $1 branch
