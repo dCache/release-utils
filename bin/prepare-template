@@ -14,8 +14,13 @@ range() { # $1 range specifier --- either a branch (e.g. "2.10") or explicit ran
         echo "$1"
     else
         latest_tag=$(latest_tag $1)
-        prev_tag=$branch.$(( $(echo $latest_tag|cut -d. -f3) - 1 ))
-        echo $prev_tag..$latest_tag
+        bugfix=${latest_tag##*.}
+        if [ $bugfix -eq 0 ]; then
+           echo "Not generating template entry for initial release of $1" >&2
+        else
+           prev_tag=$branch.$(( $bugfix - 1 ))
+           echo $prev_tag..$latest_tag
+        fi
     fi
 }
 
@@ -90,15 +95,18 @@ done
 
 ## Build the list of changes
 for branch in $*; do
-    echo "B: $(branch $branch)"
-    latest_tag=$(latest_tag $branch)
-    prev_tag=$branch.$(( $(echo $latest_tag|cut -d. -f3) - 1 ))
     range=$(range $branch)
 
-    echo "### Changelog $range"
-    echo
-    echo "<!-- git log $range -no-merges -format='[%h](https://github.com/dcache/dcache/commit/%H)%n:   %s%n' -->"
-    echo
-    list_changes '[%h](https://github.com/dcache/dcache/commit/%H)%n:   %s%n' $range
-    echo "--"
+    if [ ! -z "$range" ]; then
+        echo "B: $(branch $branch)"
+        latest_tag=$(latest_tag $branch)
+        prev_tag=$branch.$(( $(echo $latest_tag|cut -d. -f3) - 1 ))
+
+        echo "### Changelog $range"
+        echo
+        echo "<!-- git log $range -no-merges -format='[%h](https://github.com/dcache/dcache/commit/%H)%n:   %s%n' -->"
+        echo
+        list_changes '[%h](https://github.com/dcache/dcache/commit/%H)%n:   %s%n' $range
+        echo "--"
+    fi
 done
