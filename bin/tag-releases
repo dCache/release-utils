@@ -18,7 +18,7 @@ fi
 if [ $# -gt 0 ]; then
     BRANCHES="$@"
 else
-    BRANCHES="2.15 2.14 2.13 2.12 2.11 2.10 2.9 2.8 2.7 2.6"
+    BRANCHES="2.16 2.15 2.14 2.13 2.12 2.11 2.10 2.9 2.8 2.7 2.6"
 fi
 
 for branch in $BRANCHES; do
@@ -82,7 +82,7 @@ git rev-parse --git-dir >/dev/null 2>&1 || fail "Current directory not a git rep
 
 [ $(git status --porcelain | wc -l) -eq 0 ] || fail "git repo isn't clean"
 
-git_remote_branch=$(git remote -v | awk "/git@github.com:dCache\/dcache.git \(fetch\)/{print \$1}")
+git_remote_branch=$(git remote -v | awk "/github.com\/dCache\/dcache.git \(fetch\)/{print \$1}")
 [ "$git_remote_branch" != "" ] || fail "Current directory has no (fetch) remote branch from github."
 
 echo -n "Checking which branches need releasing: "
