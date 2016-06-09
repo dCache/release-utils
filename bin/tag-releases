@@ -82,7 +82,7 @@ git rev-parse --git-dir >/dev/null 2>&1 || fail "Current directory not a git rep
 
 [ $(git status --porcelain | wc -l) -eq 0 ] || fail "git repo isn't clean"
 
-git_remote_branch=$(git remote -v | awk "/github.com\/dCache\/dcache.git \(fetch\)/{print \$1}")
+git_remote_branch=$(git remote -v | awk "/github\.com.dCache\/dcache\.git \(fetch\)/{print \$1}")
 [ "$git_remote_branch" != "" ] || fail "Current directory has no (fetch) remote branch from github."
 
 echo -n "Checking which branches need releasing: "
