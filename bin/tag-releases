@@ -10,8 +10,20 @@ etc=$(cd $(dirname "$0")/../etc; pwd)
 . $share/functions
 . $etc/paths
 
+if [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
+    echo "--auto-tag   tag without prompting for confirmation"
+    echo "--no-push    do not push any changes"
+    echo "--help  -h   this information"
+    exit 0
+fi
+
 if [ "$1" = "--auto-tag" ]; then
     auto_tag=1
+    shift
+fi
+
+if [ "$1" = "--no-push" ]; then
+    no_push=1
     shift
 fi
 
@@ -102,6 +114,11 @@ if [ "$auto_tag" != "1" ]; then
     [ "$answer" = "continue" ] || fail "Aborted at user request."
 fi
 
+if [ "$no_push" = "1" ]; then
+    nopush_option=-DpushChanges=false
+fi
+
+
 for branch in $release_branches; do
     git checkout -q $branch
     git clean -df >/dev/null
@@ -111,5 +128,5 @@ for branch in $release_branches; do
     echo "==="
     echo "===    Preparing for $next_tag"
     echo "==="
-    mvn -B release:prepare
+    mvn -B ${nopush_option} release:prepare
 done
