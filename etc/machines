@@ -1,0 +1,25 @@
+# The machines used for building binary-only releases.
+#
+# Each package has two machines: a JDK v7 and JDK v8.  Due to
+# non-backwards compatibility, we cannot use JDK v8 to build JDK v7
+# packages.
+#
+
+#
+# For building .tar.gz packages
+#
+BUILD_TGZ_JDK8=jenkins@sisyphus.desy.de
+BUILD_TGZ_JDK7=jenkins@dcache-tb02.desy.de
+
+#
+# For building .rpm packages
+#
+BUILD_RPM_JDK8=jenkins@sisyphus.desy.de
+BUILD_RPM_JDK7=jenkins@dcache-tb02.desy.de
+
+#
+# For building .deb packages
+#
+BUILD_DEB_JDK8=builder@vm-dcache-deb02.desy.de
+BUILD_DEB_JDK7=builder@vm-dcache-deb01.desy.de
+

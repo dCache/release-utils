@@ -1,0 +1,149 @@
+#!/bin/bash
+#
+#  Script automates the process of creating dCache packages without
+#  Jenkins.
+#
+#  The purpose is to make binary-only releases of dCache: releases
+#  that are used when handling security vulnerabilities.  The
+#  intention is that we release the affected branches with the changes
+#  to the source-code NOT available in github.  After some embargo
+#  period, the changes are pushed into github, making the details
+#  public and regular releases continue.  The embargo period gives
+#  sites time to upgrade.
+
+set -e
+
+etc=$(cd $(dirname "$0")/../etc; pwd)
+share=$(cd $(dirname "$0")/../share; pwd)
+
+. $etc/machines
+. $share/functions
+
+[ $# -gt 0 ] || fail "Need to specify which tags are to be built"
+
+git rev-parse --git-dir >/dev/null 2>&1 || fail "Current directory not a git repo."
+
+[ $(git status --porcelain | wc -l) -eq 0 ] || fail "git repo isn't clean"
+
+git_remote_branch=$(git remote -v | awk "/git@github.com:dCache\/dcache.git \(fetch\)/{print \$1}")
+if [ "$git_remote_branch" = "" ]; then
+    git_remote_branch=$(git remote -v | awk "/https:\/\/github.com\/dCache\/dcache.git/{print \$1}")
+fi
+
+[ "$git_remote_branch" != "" ] || fail "Current git repo is not a dCache clone."
+
+# Validate arguments
+for tag in $*; do
+    rc=0
+    check=$(git describe refs/tags/$tag) || rc=1
+    if [ $rc -ne 0 ] || [ "$check" != "$tag" ]; then
+	fail "No such tag $tag"
+    fi
+
+    if [ $(git branch --contains refs/tags/$tag | wc -l) -ne 1 ]; then
+	fail "Tag $tag appears in multiple branches"
+    fi
+
+    branch=$(git branch --contains refs/tags/$tag | cut -c3-)
+
+    if [ $(git describe --tags --abbrev=0 $branch) != $tag ]; then
+	fail "Tag $tag is not the latest tag in branch $branch"
+    fi
+done
+
+target_dir=$(cd ..;pwd)
+echo "Building tags $* and storing packages in $target_dir"
+echo -n "Type \"continue\" to continue: "
+read response
+if [ "$response" != "continue" ]; then
+    fail "Aborting at users request"
+fi
+
+function build() { # $1 user, $2 machine, $3 src tarball, $4 tag, $5 package
+
+    #  We need to work-around the lack of git when building the source
+    #  tar-ball.  To do this we redirect the scmBranch property to one
+    #  that is ignored and manually set the property.
+    branch_option="-DscmBranchPropertyName=ignoreMe -DscmBranch=${4%.*}"
+
+    case $5 in
+	TGZ)
+	    module=packages/tar
+	    profile_option=
+	    package_file="dcache-$4.tar.gz"
+	    package_path="packages/tar/target/$package_file"
+	    ;;
+	RPM)
+	    module=packages/fhs
+	    profile_option=-Prpm
+	    package_file="dcache-$4-1.noarch.rpm"
+	    package_path="packages/fhs/target/rpmbuild/RPMS/noarch/$package_file"
+	    ;;
+	DEB)
+	    module=packages/fhs
+	    profile_option=-Pdeb
+	    package_file="dcache_$4-1_all.deb"
+	    package_path="packages/fhs/target/$package_file"
+	    ;;
+	*)
+	    fail "Unknown package $5"
+	    ;;
+    esac
+
+    echo "Uploading source package to $5 build machine: $2"
+    scp -q $3 $1@$2:/tmp/$3
+
+    target_dir="SpecialBuilds/$4"
+    maven_logfile=/tmp/maven-$$-$5.out
+
+    script=binary-releases-$$.sh
+    cat - > $script <<EOF
+export PATH=$PATH:/opt/tools/apache-maven/bin
+mkdir -p $target_dir
+cd $target_dir
+rm -rf *
+echo Expanding source package
+tar xzf /tmp/$3
+echo "Building $package_file (see $2:$maven_logfile)"
+mvn -l $maven_logfile -am -pl $module clean package $branch_option -DskipTests $profile_option
+if [ $? -ne 0 ]; then
+    echo Build failed
+else
+    rm $maven_logfile
+fi
+EOF
+    host_script=/tmp/$script
+    scp -q $script $1@$2:$host_script
+    rm $script
+    ssh -T -l $1 $2 chmod 755 $host_script
+    ssh -T -l $1 $2 $host_script
+    ssh -T -l $1 $2 rm $host_script
+
+    echo "Downloading binary package $(basename $package_path)"
+    scp -q $1@$2:$target_dir/$package_path ..
+}
+
+#  Build the tagged versions of dCache
+for tag in $*; do
+    git clean -dfx
+
+    branch=$(git branch --contains refs/tags/$tag | cut -c3-)
+    jdk=$(jdk_for_branch "$branch")
+    src=dcache-$tag-src.tar.gz
+
+    echo Building source package: $src
+    git checkout -q $tag
+
+    #  The "git commit id plugin" requires the .git directory, with no
+    #  way to by-pass this.
+    grep -q git-commit-id-plugin pom.xml && dot_git=.git || dot_git=
+
+    tar czf $src * $dot_git
+
+    for pkg in RPM DEB TGZ; do
+	usermachine=$(eval "echo \${BUILD_${pkg}_JDK${jdk}}")
+	machine=${usermachine#*@}
+	user=${usermachine%@*}
+	build $user $machine $src $tag $pkg
+    done
+done
