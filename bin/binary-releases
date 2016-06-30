@@ -1,7 +1,9 @@
 #!/bin/bash
 #
 #  Script automates the process of creating dCache packages without
-#  Jenkins.
+#  Jenkins.  For each tag, it builds a source tarball that is copied
+#  to appropriate build machine(s), which then build the packages.
+#  The results are copied back.
 #
 #  The purpose is to make binary-only releases of dCache: releases
 #  that are used when handling security vulnerabilities.  The
@@ -99,9 +101,9 @@ function build() { # $1 user, $2 machine, $3 src tarball, $4 tag, $5 package
     script=binary-releases-$$.sh
     cat - > $script <<EOF
 export PATH=$PATH:/opt/tools/apache-maven/bin
+rm -rf $target_dir
 mkdir -p $target_dir
 cd $target_dir
-rm -rf *
 echo Expanding source package
 tar xzf /tmp/$3
 echo "Building $package_file (see $2:$maven_logfile)"
@@ -124,26 +126,31 @@ EOF
 }
 
 #  Build the tagged versions of dCache
-for tag in $*; do
-    git clean -dfx
+initial_branch=$(git rev-parse --abbrev-ref HEAD)
+function cleanup() {
+    git checkout -q $initial_branch
+    rm -f $src
+}
+trap cleanup EXIT
 
+git clean -dfx
+for tag in $*; do
     branch=$(git branch --contains refs/tags/$tag | cut -c3-)
-    jdk=$(jdk_for_branch "$branch")
     src=dcache-$tag-src.tar.gz
 
     echo Building source package: $src
     git checkout -q $tag
 
-    #  The "git commit id plugin" requires the .git directory, with no
-    #  way to by-pass this.
-    grep -q git-commit-id-plugin pom.xml && dot_git=.git || dot_git=
+    touch $src
+    tar czf $src --exclude=$src .
 
-    tar czf $src * $dot_git
-
+    jdk=$(jdk_for_branch "$branch")
     for pkg in RPM DEB TGZ; do
 	usermachine=$(eval "echo \${BUILD_${pkg}_JDK${jdk}}")
 	machine=${usermachine#*@}
 	user=${usermachine%@*}
 	build $user $machine $src $tag $pkg
     done
+
+    rm -f $src
 done
