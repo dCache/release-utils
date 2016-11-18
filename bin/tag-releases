@@ -30,7 +30,7 @@ fi
 if [ $# -gt 0 ]; then
     BRANCHES="$@"
 else
-    BRANCHES="2.16 2.15 2.14 2.13 2.12 2.11 2.10"
+    BRANCHES="3.0 2.16 2.15 2.14 2.13 2.12 2.11 2.10"
 fi
 
 for branch in $BRANCHES; do
@@ -45,6 +45,16 @@ for branch in $BRANCHES; do
                     ;;
             esac
             ;;
+        3.[0-9]*)
+	    case "${branch#3.}" in
+	        0)
+		    # Also valid
+		    ;;
+		*)
+		    fail Invalid branch: $branch
+		    ;;
+	    esac
+	    ;;
         *)
             fail Invalid branch: $branch
             ;;
@@ -130,3 +140,8 @@ for branch in $release_branches; do
     echo "==="
     mvn -B ${nopush_option} release:prepare
 done
+
+echo
+echo Tagging finished for branches $release_branches .
+echo
+
