@@ -11,7 +11,7 @@ share=$(cd $(dirname "$0")/../share; pwd)
 . $share/functions
 . $etc/paths
  
-for ver in 2.10 2.11 2.12 2.13 2.14 2.15 2.16; do
+for ver in 2.10 2.11 2.12 2.13 2.14 2.15 2.16 3.0; do
     echo Building release-notes-$ver.shtml ...
     $MULTIMARKDOWN -t html --process-html release-notes-$ver  | xsltproc release-notes.xsl - > release-notes-$ver.shtml
 done
