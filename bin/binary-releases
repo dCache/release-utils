@@ -21,7 +21,7 @@ share=$(cd $(dirname "$0")/../share; pwd)
 . $etc/machines
 . $share/functions
 
-[ $# -gt 0 ] || fail "Need to specify which tags are to be built"
+[ $# -gt 0 ] || fail "Need to specify which tags are to be built, or HEAD"
 
 git rev-parse --git-dir >/dev/null 2>&1 || fail "Current directory not a git repo."
 
@@ -36,6 +36,10 @@ fi
 
 # Validate arguments
 for tag in $*; do
+    if [ $tag = "HEAD" ]; then
+	continue
+    fi
+
     rc=0
     check=$(git describe refs/tags/$tag) || rc=1
     if [ $rc -ne 0 ] || [ "$check" != "$tag" ]; then
@@ -54,38 +58,35 @@ for tag in $*; do
 done
 
 target_dir=$(cd ..;pwd)
-echo "Building tags $* and storing packages in $target_dir"
+echo "Building $* and storing packages in $target_dir"
 echo -n "Type \"continue\" to continue: "
 read response
 if [ "$response" != "continue" ]; then
     fail "Aborting at users request"
 fi
 
-function build() { # $1 user, $2 machine, $3 src tarball, $4 tag, $5 package
+function build() { # $1 user, $2 machine, $3 src tarball, $4 SCM branch, $5 package
 
     #  We need to work-around the lack of git when building the source
     #  tar-ball.  To do this we redirect the scmBranch property to one
     #  that is ignored and manually set the property.
-    branch_option="-DscmBranchPropertyName=ignoreMe -DscmBranch=${4%.*}"
+    branch_option="-DscmBranchPropertyName=ignoreMe -DscmBranch=$4"
 
     case $5 in
 	TGZ)
 	    module=packages/tar
 	    profile_option=
-	    package_file="dcache-$4.tar.gz"
-	    package_path="packages/tar/target/$package_file"
+	    package_path="packages/tar/target/dcache-*.tar.gz"
 	    ;;
 	RPM)
 	    module=packages/fhs
 	    profile_option=-Prpm
-	    package_file="dcache-$4-1.noarch.rpm"
-	    package_path="packages/fhs/target/rpmbuild/RPMS/noarch/$package_file"
+	    package_path="packages/fhs/target/rpmbuild/RPMS/noarch/dcache-*-1.noarch.rpm"
 	    ;;
 	DEB)
 	    module=packages/fhs
 	    profile_option=-Pdeb
-	    package_file="dcache_$4-1_all.deb"
-	    package_path="packages/fhs/target/$package_file"
+	    package_path="packages/fhs/target/dcache_*-1_all.deb"
 	    ;;
 	*)
 	    fail "Unknown package $5"
@@ -106,7 +107,7 @@ mkdir -p $target_dir
 cd $target_dir
 echo Expanding source package
 tar xzf /tmp/$3
-echo "Building $package_file (see $2:$maven_logfile)"
+echo "Building $4 (see $2:$maven_logfile)"
 mvn -l $maven_logfile -am -pl $module clean package $branch_option -DskipTests $profile_option
 if [ $? -ne 0 ]; then
     echo Build failed
@@ -121,7 +122,7 @@ EOF
     ssh -T -l $1 $2 $host_script
     ssh -T -l $1 $2 rm $host_script
 
-    echo "Downloading binary package $(basename $package_path)"
+    echo "Downloading $5 binary package for $4"
     scp -q $1@$2:$target_dir/$package_path ..
 }
 
@@ -135,11 +136,17 @@ trap cleanup EXIT
 
 git clean -dfx
 for tag in $*; do
-    branch=$(git branch --contains refs/tags/$tag | cut -c3-)
-    src=dcache-$tag-src.tar.gz
+    if [ $tag = "HEAD" ]; then
+	branch=$(sed -n 's% *<version>\([0-9]*\.[0-9]*\)\.[0-9]*\(\-SNAPSHOT\)\?</version> *%\1%p' pom.xml |head -1)
+	src=dcache-$branch-HEAD-src.tar.gz
+	echo Building source package: $src
+    else
+	branch=$(git branch --contains refs/tags/$tag | cut -c3-)
+	src=dcache-$tag-src.tar.gz
+	echo Building source package: $src
 
-    echo Building source package: $src
-    git checkout -q $tag
+	git checkout -q $tag
+    fi
 
     touch $src
     tar czf $src --exclude=$src .
@@ -149,7 +156,7 @@ for tag in $*; do
 	usermachine=$(eval "echo \${BUILD_${pkg}_JDK${jdk}}")
 	machine=${usermachine#*@}
 	user=${usermachine%@*}
-	build $user $machine $src $tag $pkg
+	build $user $machine $src $branch $pkg
     done
 
     rm -f $src
