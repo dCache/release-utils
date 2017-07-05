@@ -30,14 +30,14 @@ fi
 if [ $# -gt 0 ]; then
     BRANCHES="$@"
 else
-    BRANCHES="3.1 3.0 2.16 2.15 2.14 2.13 2.12 2.11 2.10"
+    BRANCHES="3.1 3.0 2.16 2.15 2.14 2.13"
 fi
 
 for branch in $BRANCHES; do
     case "$branch" in
         2.[0-9]*)
             case "${branch#2.}" in
-                6|7|8|9|10|11|12|13|14|15|16)
+                13|14|15|16)
                     #  Valid
                     ;;
                 *)
@@ -60,18 +60,6 @@ for branch in $BRANCHES; do
             ;;
     esac
 done
-
-java_home_for_tag() {
-    case $1 in
-        2.10* | 2.9* | 2.8* | 2.7* | 2.6*)
-            echo $JDK7_HOME
-            ;;
-
-        *)
-            echo $JDK8_HOME
-            ;;
-    esac
-}
 
 branches_to_release() {
     git fetch $git_remote_branch
@@ -133,7 +121,6 @@ for branch in $release_branches; do
     git checkout -q $branch
     git clean -df >/dev/null
     next_tag=$(sed -n '/version/s/[^0-9]*\([0-9.]*\).*/\1/p' pom.xml |head -1)
-    export JAVA_HOME=$(java_home_for_tag ${next_tag})
     echo
     echo "==="
     echo "===    Preparing for $next_tag"
