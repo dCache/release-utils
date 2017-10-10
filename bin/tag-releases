@@ -47,7 +47,7 @@ for branch in $BRANCHES; do
             ;;
         3.[0-9]*)
 	    case "${branch#3.}" in
-	        0|1|2)
+	        0|1)
 		    # Also valid
 		    ;;
 		*)
