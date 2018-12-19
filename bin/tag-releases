@@ -30,7 +30,7 @@ fi
 if [ $# -gt 0 ]; then
     BRANCHES="$@"
 else
-    BRANCHES="4.2 4.1 4.0 3.2 3.1 3.0 2.16 2.15 2.14 2.13"
+    BRANCHES="5.0 4.2 4.1 4.0 3.2 3.1 3.0 2.16"
 fi
 
 for branch in $BRANCHES; do
@@ -38,7 +38,7 @@ for branch in $BRANCHES; do
         2.[0-9]*)
             case "${branch#2.}" in
                 13|14|15|16)
-                    #  Valid
+                    # Valid branches
                     ;;
                 *)
                     fail Invalid branch: $branch
@@ -48,7 +48,7 @@ for branch in $BRANCHES; do
         3.[0-9]*)
 	    case "${branch#3.}" in
 	        0|1|2)
-		    # Also valid
+		    # Valid branches
 		    ;;
 		*)
 		    fail Invalid branch: $branch
@@ -58,13 +58,24 @@ for branch in $BRANCHES; do
          4.[0-9]*)
             case "${branch#4.}" in
                 0|1|2)
-                    # Also valid
+                    # Valid branches
                     ;;
                 *)
                     fail Invalid branch: $branch
                     ;;
             esac
             ;;
+         5.[0-9]*)
+	    case "${branch#5.}" in
+	        0|1|2)
+		    # Valid branches
+                    ;;
+                *)
+                    fail Invalid branch: $branch
+                    ;;
+            esac
+            ;;
+ 
 
         *)
             fail Invalid branch: $branch
