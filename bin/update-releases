@@ -7,7 +7,7 @@ set -e
 etc=$(cd $(dirname $0)/../etc;pwd)
 share=$(cd $(dirname $0)/../share;pwd)
 
-REPO_URL=https://www.dcache.org/old/downloads/1.9/repo
+REPO_URL=https://www.dcache.org/downloads/1.9/repo
 
 . $share/functions
 
@@ -164,7 +164,7 @@ build_email() { # $* - list of dCache versions to release
 		frag_id="release$version"
 		;;
 	esac
-	rel_notes="${rel_notes}[$index] https://www.dcache.org/old/downloads/1.9/release-notes-$series.shtml#$frag_id\n"
+	rel_notes="${rel_notes}[$index] https://www.dcache.org/downloads/1.9/release-notes-$series.shtml#$frag_id\n"
 
 	index=$(( $index + 1 ))
     done
