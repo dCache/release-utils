@@ -30,7 +30,7 @@ fi
 if [ $# -gt 0 ]; then
     BRANCHES="$@"
 else
-    BRANCHES="6.1 6.0 5.2 5.1 5.0 4.2 4.1 4.0 3.2"
+    BRANCHES="6.2 6.1 6.0 5.2 5.1 5.0 4.2 4.1 4.0 3.2"
 fi
 
 for branch in $BRANCHES; do
