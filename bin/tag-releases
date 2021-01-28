@@ -1,5 +1,5 @@
 #!/bin/bash
-# #
+#
 #  Do the tagging for dCache release
 
 set -e
