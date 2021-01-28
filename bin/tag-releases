@@ -86,6 +86,17 @@ for branch in $BRANCHES; do
             esac
             ;;
 
+	    7.[0-9]*)
+            case "${branch#7.}" in
+                0|1|2)
+                    # Valid branches
+                    ;;
+                *)
+                    fail Invalid branch: $branch
+                    ;;
+            esac
+            ;;
+
 
         *)
             fail Invalid branch: $branch
