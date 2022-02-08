@@ -98,7 +98,7 @@ for branch in $BRANCHES; do
             ;;
 	    
     	    8.[0-9]*)
-            case "${branch#7.}" in
+            case "${branch#8.}" in
                 0|1|2)
                     # Valid branches
                     ;;
