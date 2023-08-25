@@ -30,7 +30,7 @@ fi
 if [ $# -gt 0 ]; then
     BRANCHES="$@"
 else
-    BRANCHES="9.0 8.2 8.1 8.0 7.2 7.1 7.0 6.2 6.1 6.0 5.2 5.1 5.0 4.2 4.1 4.0 3.2"
+    BRANCHES="9.1 9.0 8.2 8.1 8.0 7.2 7.1 7.0 6.2 6.1 6.0 5.2 5.1 5.0 4.2 4.1 4.0 3.2"
 fi
 
 for branch in $BRANCHES; do
@@ -147,8 +147,8 @@ branches_to_release() {
             last_bugfix=$(echo $last_tag|cut -d. -f3)
             [ $(( $last_bugfix + 1 )) -eq $next_bugfix ] || fail "Mismatch between last tag $last_tag and anticipated next tag $next_tag"
 
-            remove_count=$(git diff $last_tag..$branch |grep ^-| egrep -v "(---)|(<(version|tag)>$last_tag</(version|tag)>)"|wc -l)
-            add_count=$(git diff $last_tag..$branch |grep ^+| egrep -v "(\+\+\+)|(<(version|tag)>$next_tag-SNAPSHOT</(version|tag)>)"|grep -v "<tag>.*</tag>"|wc -l)
+            remove_count=$(git diff $last_tag..$branch |grep ^-| grep -E -v "(---)|(<(version|tag)>$last_tag</(version|tag)>)"|wc -l)
+            add_count=$(git diff $last_tag..$branch |grep ^+| grep -E -v "(\+\+\+)|(<(version|tag)>$next_tag-SNAPSHOT</(version|tag)>)"|grep -v "<tag>.*</tag>"|wc -l)
             [ $(( $remove_count + $add_count )) -gt 0 ] && echo $branch || :
         fi
     done
