@@ -31,13 +31,15 @@ get_bugfix() { # $1 dCache version
 
 
 release_exists() {  # $1 series, $2 bugfix release
-    rc=0
-    xmllint --xpath "/download-page/series/releases[version-prefix='$1.']/release[@version='$2']" releases.xml >/dev/null 2>&1 || rc=$?
-    if [ $rc -eq 0 ]; then
-	return 0
-    else
-	return 1
-    fi
+	rc=0
+	file="layouts/shortcodes/releases-$(echo $1 | sed 's/\./\-/').html"
+	grep -F "${1}.${2}" $file > /dev/null || rc=$?
+
+	if [ $rc -eq 0 ]; then
+		return 0
+	else
+		return 1
+	fi
 }
 
 check_release_does_not_exist() { # $1 series, $2 bugfix release
@@ -123,11 +125,80 @@ build_checksum_info() { # $1 - dCache version
     rm -rf $tmp
 }
 
-
 update_releases() { # $1 - dCache version
-    [ -z ${date+x} ] || date_param="--stringparam date $date"
+	# old web pages
+	[ -z ${date+x} ] || date_param="--stringparam date $date"
     xsltproc --stringparam version $1 $date_param --stringparam checksums-path "$(pwd)" $share/update-releases.xsl releases.xml > out.xml
     mv out.xml releases.xml
+
+	# new web pages
+    [ -z ${date} ] && date=$(date +%d.%m.%Y)
+	series=$(get_series $1)
+	bugfix=$(get_bugfix $1)
+	file="layouts/shortcodes/releases-$(echo $series | sed 's/\./\-/').html"
+
+	# replace rec (= recent version, green highlighted) with even or odd
+	# if newest version is odd, the last version was even and vice versa
+	even_odd="odd"
+	mod=$((bugfix % 2))
+	[ $mod -eq "0" ] || even_odd="even"
+
+	tmp_file="$file.tmp"
+	sed "s/rec/${even_odd}/" $file > $tmp_file
+
+	mv $tmp_file $file
+
+	# write new table entry on top
+	cat > $tmp_file << EOF
+<tr class="rec" id="$1">
+<td class="link">
+<a href="/old/downloads/1.9/repo/$series/dcache_$1-1_all.deb">
+dCache $1 (Debian package)
+</a>
+</td>
+<td class="date">
+$date
+</td>
+<td class="hash">
+`xmllint --xpath "//checksum[@type='deb']/text()" checksums-$series.xml`
+</td>
+<td class="notes" rowspan="3">
+<a href="/old/downloads/1.9/release-notes-$series.shtml">
+$1
+</a>
+</td>
+</tr>
+<tr class="rec">
+<td class="link">
+<a href="/old/downloads/1.9/repo/$series/dcache-$1-1.noarch.rpm">
+dCache $1 (rpm)
+</a>
+</td>
+<td class="date">
+$date
+</td>
+<td class="hash">
+`xmllint --xpath "//checksum[@type='rpm']/text()" checksums-$series.xml`
+</td>
+</tr>
+<tr class="rec">
+<td class="link">
+<a href="/old/downloads/1.9/repo/$series/dcache-$1.tar.gz">
+dCache $1 (tgz)
+</a>
+</td>
+<td class="date">
+$date
+</td>
+<td class="hash">
+`xmllint --xpath "//checksum[@type='tgz']/text()" checksums-$series.xml`
+</td>
+</tr>
+EOF
+
+# Add old table entries below the new one
+cat $file >> $tmp_file
+mv $tmp_file $file
 }
 
 build_email() { # $* - list of dCache versions to release
@@ -215,14 +286,14 @@ done
 
 
 for rel in $releases; do
-    validate_release "$rel"
-    check_version_ok_to_release $rel
+	validate_release "$rel"
+	check_version_ok_to_release $rel
 done
 
 for rel in $releases; do
-    echo Adding release info for $rel
-    build_checksum_info $rel
-    update_releases $rel
+	echo Adding release info for $rel
+	build_checksum_info $rel
+	update_releases $rel
     rm checksums-$(get_series $rel).xml
 done
 
