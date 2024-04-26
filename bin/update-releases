@@ -134,7 +134,7 @@ update_releases() { # $1 - dCache version
     [ -z ${date} ] && date=$(date +%d.%m.%Y)
 	series=$(get_series $1)
 	bugfix=$(get_bugfix $1)
-	file="layouts/shortcodes/releases-$(echo $series | sed 's/\./\-/').html"
+	file="../www-dcache-org/layouts/shortcodes/releases-$(echo $series | sed 's/\./\-/').html"
 
 	# replace rec (= recent version, green highlighted) with even or odd
 	# if newest version is odd, the last version was even and vice versa
@@ -143,6 +143,7 @@ update_releases() { # $1 - dCache version
 	[ $mod -eq "0" ] || even_odd="even"
 
 	tmp_file="$file.tmp"
+	touch $tmp_file
 	sed "s/rec/${even_odd}/" $file > $tmp_file
 
 	mv $tmp_file $file
