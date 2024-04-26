@@ -126,6 +126,12 @@ build_checksum_info() { # $1 - dCache version
 }
 
 update_releases() { # $1 - dCache version
+	# old web pages
+	[ -z ${date+x} ] || date_param="--stringparam date $date"
+    xsltproc --stringparam version $1 $date_param --stringparam checksums-path "$(pwd)" $share/update-releases.xsl releases.xml > out.xml
+    mv out.xml releases.xml
+
+	# new web pages
     [ -z ${date} ] && date=$(date +%d.%m.%Y)
 	series=$(get_series $1)
 	bugfix=$(get_bugfix $1)
@@ -146,7 +152,7 @@ update_releases() { # $1 - dCache version
 	cat > $tmp_file << EOF
 <tr class="rec" id="$1">
 <td class="link">
-<a href="repo/$series/dcache_$1-1_all.deb">
+<a href="/old/downloads/1.9/repo/$series/dcache_$1-1_all.deb">
 dCache $1 (Debian package)
 </a>
 </td>
@@ -157,14 +163,14 @@ $date
 `xmllint --xpath "//checksum[@type='deb']/text()" checksums-$series.xml`
 </td>
 <td class="notes" rowspan="3">
-<a href="release-notes-$series.shtml">
+<a href="/old/downloads/1.9/release-notes-$series.shtml">
 $1
 </a>
 </td>
 </tr>
 <tr class="rec">
 <td class="link">
-<a href="repo/$series/dcache-$1-1.noarch.rpm">
+<a href="/old/downloads/1.9/repo/$series/dcache-$1-1.noarch.rpm">
 dCache $1 (rpm)
 </a>
 </td>
@@ -177,7 +183,7 @@ $date
 </tr>
 <tr class="rec">
 <td class="link">
-<a href="repo/$series/dcache-$1.tar.gz">
+<a href="/old/downloads/1.9/repo/$series/dcache-$1.tar.gz">
 dCache $1 (tgz)
 </a>
 </td>
