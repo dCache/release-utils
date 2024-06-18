@@ -17,6 +17,10 @@ if [ $# -eq 0 ]; then
     fail "Need to specify which dCache releases to process."
 fi
 
+if [ ! -d "../www-dcache-org/" ]; then
+    fail "Need www-dcache-org repo at ../ in order to proceed."
+fi
+
 validate_release() { # $1 - dCache release
     echo "$1" | grep -q '^[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*$' || fail "Version \"$1\" is not a valid dCache release"
 }
@@ -96,7 +100,6 @@ build_checksum_info() { # $1 - dCache version
     series=$(get_series $1)
     tmp=$(mktemp -d)
     cwd=`pwd`
-    
     cd $tmp
     download_packages $1
 
