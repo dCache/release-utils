@@ -235,14 +235,14 @@ build_email() { # $* - list of dCache versions to release
 		frag_id="$bugfix"
 		;;
 	    *)
-		frag_id="release$version"
+		frag_id="$version"
 		;;
 	esac
-	rel_notes="${rel_notes}[$index] https://www.dcache.org/old/downloads/1.9/release-notes-$series.shtml#$frag_id\n"
+	series_dashsep="${series//./-}"
+	rel_notes="${rel_notes}[$index] https://dcache.org/downloads/release-$series_dashsep#$frag_id\n"
 
 	index=$(( $index + 1 ))
     done
-
     sed "s/EACH/$each/g;s/RELEASES/$releases/g;s/ARE/$are/g;s/VERSION_LIST/$version_list/g" $etc/email-template | fmt -u
     echo
     echo -e "$rel_notes"
