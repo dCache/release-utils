@@ -123,6 +123,9 @@ for branch in $BRANCHES; do
                 0)
                     # Valid branches
                     ;;
+	       1)   # Valid branches
+                    ;;
+   
                 *)
                     fail Invalid branch: $branch
                     ;;
