@@ -166,7 +166,7 @@ $date
 `xmllint --xpath "//checksum[@type='deb']/text()" checksums-$series.xml`
 </td>
 <td class="notes" rowspan="3">
-<a href="/old/downloads/1.9/release-notes-$series.shtml">
+<a href="/old/downloads/1.9/release-notes-$series.shtml#release$1">
 $1
 </a>
 </td>
