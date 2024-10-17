@@ -120,12 +120,9 @@ for branch in $BRANCHES; do
             ;;
 	    10.[0-9]*)
             case "${branch#10.}" in
-                0)
+                0|1|2)
                     # Valid branches
                     ;;
-	       1)   # Valid branches
-                    ;;
-   
                 *)
                     fail Invalid branch: $branch
                     ;;
