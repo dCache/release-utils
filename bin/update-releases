@@ -13,6 +13,29 @@ REPO_URL=https://www.dcache.org/old/downloads/1.9/repo
 
 shopt -s extglob
 
+verify_packages_exist() { # $1 - dCache version
+    local version=$1
+    local series=$(get_series $version)
+    local base_url="$REPO_URL/$series"
+
+    local deb_name="dcache_${version}-1_all.deb"
+    local rpm_name="dcache-${version}-1.noarch.rpm"
+    local tar_name="dcache-${version}.tar.gz"
+
+    local all_ok=1
+    for filename in "$deb_name" "$rpm_name" "$tar_name"; do
+        http_code=$(curl -s -o /dev/null -w "%{http_code}" --head "$base_url/$filename")
+        if [ "$http_code" = "200" ]; then
+            echo "  OK: $filename"
+        else
+            echo "  MISSING (HTTP $http_code): $base_url/$filename" >&2
+            all_ok=0
+        fi
+    done
+
+    [ $all_ok -eq 1 ] || fail "One or more packages missing for $version — aborting before any changes are made."
+}
+
 if [ $# -eq 0 ]; then
     fail "Need to specify which dCache releases to process."
 fi
@@ -292,6 +315,14 @@ for rel in $releases; do
 	validate_release "$rel"
 	check_version_ok_to_release $rel
 done
+
+echo "Verifying packages on repo server..."
+for rel in $releases; do
+    echo "Checking $rel ..."
+    verify_packages_exist $rel
+done
+echo "All packages verified. Proceeding."
+echo
 
 for rel in $releases; do
 	echo Adding release info for $rel
