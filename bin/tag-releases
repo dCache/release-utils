@@ -204,18 +204,30 @@ if [ "$no_push" = "1" ]; then
 fi
 
 
+RELEASED_VERSIONS_FILE="${TMPDIR:-/tmp}/dcache-released-versions.txt"
+rm -f "$RELEASED_VERSIONS_FILE"
+
 for branch in $release_branches; do
     git checkout -q $branch
     git clean -df >/dev/null
-    next_tag=$(sed -n '/version/s/[^0-9]*\([0-9.]*\).*/\1/p' pom.xml |head -1)
+    next_tag=$(sed -n '/version/s/[^0-9]*\([0-9.]*\).*/\1/p' pom.xml | head -1)
     echo
     echo "==="
     echo "===    Preparing for $next_tag"
     echo "==="
     mvn -B ${nopush_option} release:prepare
+    echo "$next_tag" >> "$RELEASED_VERSIONS_FILE"
 done
 
 echo
-echo Tagging finished for branches $release_branches .
+echo "Tagging finished for branches: $release_branches"
+echo
+echo "Released versions written to: $RELEASED_VERSIONS_FILE"
+echo "---"
+cat "$RELEASED_VERSIONS_FILE"
+echo "---"
+echo
+echo "To update the website, run:"
+echo "  ~/release-utils/bin/update-releases $(tr '\n' ' ' < "$RELEASED_VERSIONS_FILE")"
 echo
 
