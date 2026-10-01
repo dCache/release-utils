@@ -164,8 +164,9 @@ branches_to_release() {
         git checkout -q $branch >/dev/null
         git merge -q --ff-only $git_remote_branch/$branch
 
-        next_tag=$(sed -n '/version/s/[^0-9]*\([0-9.]*\).*/\1/p' pom.xml |head -1)
+        next_tag=$(sed -n 's:.*<version>\([0-9.]*\)-SNAPSHOT</version>.*:\1:p' pom.xml | head -1)
         next_bugfix=$(echo $next_tag|cut -d. -f3)
+        [ -n "$next_bugfix" ] || fail "Could not parse version from pom.xml on $branch"
 
         if [ "$next_bugfix" = 0 ]; then
             ## Assume that first tag in a branch is always useful.
@@ -216,7 +217,7 @@ fi
 for branch in $release_branches; do
     git checkout -q $branch
     git clean -df >/dev/null
-    next_tag=$(sed -n '/version/s/[^0-9]*\([0-9.]*\).*/\1/p' pom.xml |head -1)
+    next_tag=$(sed -n 's:.*<version>\([0-9.]*\)-SNAPSHOT</version>.*:\1:p' pom.xml | head -1)
     echo
     echo "==="
     echo "===    Preparing for $next_tag"
